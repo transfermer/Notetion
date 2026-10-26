@@ -13,6 +13,7 @@ import { sharesRoutes, publicShareRoutes } from "./shares";
 import { exportRoutes } from "./export";
 import { backupRoutes, runScheduledBackups } from "./backups";
 import { cronToSchedules } from "./backup-config";
+import { isMcpOauthPath, mcpOauthEnabled } from "./features";
 import { runCleanup } from "./cron";
 import { generateEmbedding, storeEmbedding, EMBEDDING_MODEL } from "./ai";
 
@@ -35,6 +36,15 @@ app.use("*", async (c, next) => {
     c.header("Cache-Control", "no-store"); // authenticated data must never sit in shared/browser caches
   }
   if (path.startsWith("/s/")) c.header("X-Robots-Tag", "noindex, nofollow");
+});
+
+// MCP / OAuth / API-key routes are off unless ENABLE_MCP_OAUTH=true (they only serve external tools).
+app.use("*", async (c, next) => {
+  const flag = (c.env as Env & { ENABLE_MCP_OAUTH?: string }).ENABLE_MCP_OAUTH;
+  if (!mcpOauthEnabled(flag) && isMcpOauthPath(c.req.path)) {
+    return c.json({ error: "not_found", path: c.req.path }, 404);
+  }
+  await next();
 });
 
 app.get("/api/health", (c) =>

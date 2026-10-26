@@ -17,7 +17,9 @@
   //   remote -> npx wrangler secret put ADMIN_PASSWORD
   "vars": {
     "ADMIN_USERNAME": "admin",
-    "APP_VERSION": "0.1.0"
+    "APP_VERSION": "0.1.0",
+    // MCP / OAuth / API-key endpoints are disabled unless this is "true".
+    "ENABLE_MCP_OAUTH": "false"
   },
 
   "d1_databases": [

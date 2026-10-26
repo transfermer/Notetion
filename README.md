@@ -89,3 +89,7 @@ First successful login creates the sole admin account and seeds the two standard
 - Admin password comparison is constant-time (digest XOR).
 - TODO before public deploy: login rate limiting (e.g. Turnstile, free), CSP headers,
   and request size limits.
+
+## MCP / OAuth / API keys (disabled by default)
+The `/mcp`, `/oauth`, `/api/oauth` and `/api/api-keys` endpoints only serve external tools and return 404 unless
+`ENABLE_MCP_OAUTH` is `"true"` (set it under `vars` in `wrangler.jsonc`, or in `.dev.vars` locally).
