@@ -88,7 +88,11 @@ sharesRoutes.post("/", async (c) => {
   if (!note) return c.json({ error: "note_not_found" }, 404);
 
   const passphrase = typeof body?.passphrase === "string" && body.passphrase.trim() ? body.passphrase.trim() : null;
-  const expiresInDays = typeof body?.expires_in_days === "number" ? body.expires_in_days : null;
+  const rawDays = body?.expires_in_days;
+  if (rawDays !== undefined && rawDays !== null && (typeof rawDays !== "number" || !Number.isInteger(rawDays) || rawDays < 1 || rawDays > 3650)) {
+    return c.json({ error: "invalid_expires_in_days" }, 400);
+  }
+  const expiresInDays = typeof rawDays === "number" ? rawDays : null;
 
   const slug = randomTokenHex(SLUG_LENGTH);
   const passphraseHash = passphrase ? await sha256Hex(passphrase) : null;
@@ -98,12 +102,20 @@ sharesRoutes.post("/", async (c) => {
 
   await c.env.DB.prepare(
     `INSERT INTO shares (id, account_id, note_id, slug, passphrase_hash, expires_at, created_at)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+     ON CONFLICT(account_id, note_id) DO UPDATE SET
+       slug = excluded.slug, passphrase_hash = excluded.passphrase_hash,
+       expires_at = excluded.expires_at, view_count = 0`,
   )
     .bind(id, accountId, noteId, slug, passphraseHash, expiresAt, ts)
     .run();
 
-  return c.json({ share: { id, note_id: noteId, slug, has_passphrase: !!passphrase, expires_at: expiresAt, created_at: ts } }, 201);
+  // On re-share the existing row (and its id) is kept; read it back so the response matches the DB.
+  const row = await c.env.DB.prepare(`SELECT id, created_at FROM shares WHERE account_id = ?1 AND note_id = ?2`)
+    .bind(accountId, noteId)
+    .first<{ id: string; created_at: number }>();
+
+  return c.json({ share: { id: row?.id ?? id, note_id: noteId, slug, has_passphrase: !!passphrase, expires_at: expiresAt, created_at: row?.created_at ?? ts } }, 201);
 });
 
 // DELETE /api/shares/:id

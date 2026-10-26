@@ -24,7 +24,7 @@ export function ShareManager(props: Props) {
   const [passphrase, setPassphrase] = useState("");
   const [expiresDays, setExpiresDays] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [createdShare, setCreatedShare] = useState<Share | null>(null);
+  const [createdShare, setCreatedShare] = useState<{ slug: string } | null>(null);
 
   useEffect(() => {
     if (props.open) {
@@ -52,10 +52,9 @@ export function ShareManager(props: Props) {
         passphrase: passphrase || undefined,
         expires_in_days: expiresDays || undefined,
       });
-      // Fetch full share details from the list.
+      // Use the response directly: `shares` here is a stale closure value from before loadShares().
+      setCreatedShare({ slug: res.share.slug });
       await loadShares();
-      const created = shares.find((s) => s.slug === res.share.slug);
-      setCreatedShare(created || null);
       setPassphrase("");
       setExpiresDays(null);
     } catch (err) {

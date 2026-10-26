@@ -6,6 +6,7 @@ import "prismjs/components/prism-typescript";
 import "prismjs/components/prism-tsx";
 import "prismjs/components/prism-latex";
 import katex from "katex";
+import "katex/dist/katex.min.css"; // bundled locally (was a CDN link at a different version than the installed katex)
 
 /**
  * Safe markdown renderer.

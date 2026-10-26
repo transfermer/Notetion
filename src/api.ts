@@ -180,8 +180,19 @@ export const api = {
     request<{ ok: boolean }>(`/api/shares/${encodeURIComponent(id)}`, { method: "DELETE" }),
 
   // Export
-  exportNotes: (format: "json" | "markdown" | "zip", note_ids?: string[]) =>
-    request<unknown>("/api/export", { method: "POST", json: { format, note_ids } }),
+  // Markdown comes back as plain text; request() would try to JSON-parse it and lose the content.
+  exportNotes: async (format: "json" | "markdown" | "zip", note_ids?: string[]): Promise<unknown> => {
+    if (format !== "markdown") return request<unknown>("/api/export", { method: "POST", json: { format, note_ids } });
+    const res = await fetch("/api/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ format, note_ids }),
+      credentials: "same-origin",
+    });
+    const text = await res.text();
+    if (!res.ok) throw new ApiError(res.status, { error: text.slice(0, 200) });
+    return text;
+  },
 
   // Backups
   getBackupConfigs: () =>
