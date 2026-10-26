@@ -1,0 +1,16 @@
+# dependencies & build output
+node_modules/
+dist/
+
+# wrangler local state & generated types
+.wrangler/
+worker-configuration.d.ts
+
+# local secrets — NEVER commit
+.dev.vars
+.dev.vars.local
+
+# misc
+*.log
+.DS_Store
+*.tsbuildinfo

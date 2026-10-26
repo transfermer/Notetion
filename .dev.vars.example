@@ -1,0 +1,12 @@
+# Notetion — local development secrets (wrangler / Cloudflare Vite plugin reads `.dev.vars`).
+#
+# Copy this file to `.dev.vars` (gitignored) and change the values:
+#   cp .dev.vars.example .dev.vars
+#
+# For production deploys set the secret instead:
+#   npx wrangler secret put ADMIN_PASSWORD
+#
+# The sole admin account. Open registration is disabled by design;
+# whoever matches these credentials becomes (and creates, on first login) the admin account.
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-me

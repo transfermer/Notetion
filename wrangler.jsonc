@@ -1,0 +1,70 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "notetion",
+  "compatibility_date": "2026-10-24",
+  "main": "./worker/index.ts",
+  "upload_source_maps": true,
+
+  // Assets: `directory` is injected automatically by the Cloudflare Vite plugin
+  // at build time (do not set it here). SPA fallback + Worker-first API routes.
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/s/*", "/oauth/*", "/mcp/*", "/sync/*", "/.well-known/*"]
+  },
+
+  // Non-secret configuration. ADMIN_PASSWORD is a secret:
+  //   local  -> .dev.vars
+  //   remote -> npx wrangler secret put ADMIN_PASSWORD
+  "vars": {
+    "ADMIN_USERNAME": "admin",
+    "APP_VERSION": "0.1.0"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "notetion-db",
+      // TODO(deploy): replace with real id — `npx wrangler d1 create notetion-db`
+      "database_id": "00000000-0000-4000-8000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "kv_namespaces": [
+    {
+      "binding": "FILES_KV",
+      // TODO(deploy): replace with real id — `npx wrangler kv namespace create FILES_KV`
+      "id": "00000000000000000000000000000000"
+    }
+  ],
+
+  // Workers AI binding (optional — if not configured, AI features are skipped).
+  "ai": {
+    "binding": "AI"
+  },
+
+  // Queue for background embedding generation.
+  "queues": {
+    "producers": [{ "name": "embedding-queue", "binding": "EMBEDDING_QUEUE" }],
+    "consumers": [{ "queue": "embedding-queue", "max_batch_size": 10, "max_retries": 3 }]
+  },
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "SYNC_HUB", "class_name": "SyncHub" },
+      { "name": "CREDENTIAL_VAULT", "class_name": "CredentialVault" }
+    ]
+  },
+  // SQLite-backed classes (required on the Workers Free plan)
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["SyncHub", "CredentialVault"] }
+  ],
+
+  "triggers": {
+    "crons": ["17 3 * * *", "0 */6 * * *"]
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

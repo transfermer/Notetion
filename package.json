@@ -1,0 +1,46 @@
+{
+  "name": "notetion",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Notetion — private markdown notepad on Cloudflare Workers Free plan",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "vite build && wrangler deploy",
+    "types": "wrangler types",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p worker/tsconfig.json --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply notetion-db --local",
+    "db:reset:local": "rm -rf .wrangler/state && npm run db:migrate:local",
+    "test": "node --experimental-strip-types --no-warnings --test \"tests/*.test.ts\""
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.20.4",
+    "@codemirror/commands": "^6.11.1",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.13.1",
+    "@codemirror/language-data": "^6.5.2",
+    "@codemirror/search": "^6.7.2",
+    "@codemirror/state": "^6.7.6",
+    "@codemirror/view": "^6.43.15",
+    "@lezer/highlight": "^1.2.5",
+    "@preact/signals": "^2.11.3",
+    "@types/katex": "^0.16.8",
+    "codemirror": "^6.0.2",
+    "hono": "^4.13.13",
+    "katex": "^0.19.1",
+    "markdown-it": "^15.0.3",
+    "preact": "^11.0.2",
+    "prismjs": "^1.30.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.65.0",
+    "@cloudflare/workers-types": "^5.20261024.1",
+    "@preact/preset-vite": "^2.10.6",
+    "@types/prismjs": "^1.26.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "wrangler": "^4.152.0"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Notetion",
+  "short_name": "Notetion",
+  "description": "Private markdown notepad on Cloudflare Workers",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f1115",
+  "theme_color": "#4f6df5",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
