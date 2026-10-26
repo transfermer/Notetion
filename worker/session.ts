@@ -39,7 +39,9 @@ export function sessionCookieHeader(hostname: string, token: string, maxAgeSecon
 
 export function readSessionToken(c: Context): string | null {
   const hostname = new URL(c.req.url).hostname;
-  return getCookie(c, sessionCookieName(hostname)) ?? getCookie(c, SESSION_COOKIE) ?? null;
+  // In production only the `__Host-` cookie counts: it cannot be set by a sibling subdomain.
+  // The plain name is accepted on localhost only (dev).
+  return getCookie(c, sessionCookieName(hostname)) ?? null;
 }
 
 export async function createSession(db: D1Database, accountId: string, userAgent: string | null): Promise<string> {

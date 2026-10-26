@@ -221,6 +221,13 @@ export async function incrementPendingAttempts(id: string): Promise<void> {
   }
 }
 
+/** Remove every locally cached note/folder and queued write (used on logout). */
+export async function clearAllLocalStores(): Promise<void> {
+  for (const name of ["notes", "folders", "pending_writes"]) {
+    await withStore(name, "readwrite", (store) => store.clear());
+  }
+}
+
 export async function clearAllPendingWrites(): Promise<void> {
   await withStore('pending_writes', 'readwrite', (store) => store.clear());
 }

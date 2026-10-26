@@ -1,6 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
 
 /**
+ * DEPRECATED — no longer used. Backup credentials are now sealed with AES-GCM using the
+ * BACKUP_ENCRYPTION_KEY Worker secret (worker/crypto-box.ts) and stored in D1. The class stays
+ * exported only because the existing Durable Object migration in wrangler.jsonc declares it.
+ *
  * CredentialVault — isolated storage for encrypted backup credentials.
  *
  * SQLite-backed Durable Object (see `new_sqlite_classes` in wrangler.jsonc).

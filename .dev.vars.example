@@ -10,3 +10,9 @@
 # whoever matches these credentials becomes (and creates, on first login) the admin account.
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=change-me
+
+# Encrypts WebDAV / S3 backup credentials stored in D1 (AES-256-GCM). REQUIRED to create backup configs.
+# Generate:  openssl rand -base64 48      Production:  npx wrangler secret put BACKUP_ENCRYPTION_KEY
+# Keep a copy somewhere safe: if it is lost or changed, saved backup configs can no longer be decrypted
+# (delete and re-create them).
+BACKUP_ENCRYPTION_KEY=replace-with-a-long-random-string-at-least-32-chars

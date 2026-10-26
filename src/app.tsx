@@ -18,7 +18,7 @@ export function App() {
 
     // Register service worker for PWA.
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch((err) => {
+      navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch((err) => {
         console.warn("[PWA] Service worker registration failed:", err);
       });
     }

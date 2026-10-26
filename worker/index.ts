@@ -11,15 +11,31 @@ import { oauthRoutes, oauthAuthorizeRoutes, oauthTokenRoutes } from "./oauth";
 import { mcpRoutes } from "./mcp";
 import { sharesRoutes, publicShareRoutes } from "./shares";
 import { exportRoutes } from "./export";
-import { backupRoutes } from "./backups";
+import { backupRoutes, runScheduledBackups } from "./backups";
+import { cronToSchedules } from "./backup-config";
 import { runCleanup } from "./cron";
 import { generateEmbedding, storeEmbedding, EMBEDDING_MODEL } from "./ai";
 
 // Durable Object classes must be exported from the Worker entrypoint.
 export { SyncHub } from "./do/sync-hub";
+// Deprecated: no longer used (credentials are sealed with BACKUP_ENCRYPTION_KEY in D1). Kept exported
+// because the existing Durable Object migration (wrangler.jsonc "v1") declares this class.
 export { CredentialVault } from "./do/credential-vault";
 
 const app = new Hono<AppEnv>();
+
+// Baseline hardening for everything the Worker itself serves (/api, /s, /oauth, /mcp).
+app.use("*", async (c, next) => {
+  await next();
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("Referrer-Policy", "no-referrer");
+  c.header("X-Frame-Options", "DENY");
+  const path = c.req.path;
+  if (path.startsWith("/api/") || path.startsWith("/oauth") || path.startsWith("/mcp")) {
+    c.header("Cache-Control", "no-store"); // authenticated data must never sit in shared/browser caches
+  }
+  if (path.startsWith("/s/")) c.header("X-Robots-Tag", "noindex, nofollow");
+});
 
 app.get("/api/health", (c) =>
   c.json({ ok: true, app: "notetion", version: c.env.APP_VERSION ?? "dev", time: Date.now() }),
@@ -98,14 +114,11 @@ app.onError((err, c) => {
 export default {
   fetch: (request, env, ctx) => app.fetch(request, env, ctx),
   scheduled: async (event, env, ctx) => {
-    // Run daily cleanup.
+    // Housekeeping (cheap, idempotent) runs on every trigger.
     ctx.waitUntil(runCleanup(env));
 
-    // Check for scheduled backups.
-    const cronExpression = event.cron;
-    if (cronExpression) {
-      ctx.waitUntil(runScheduledBackups(env, cronExpression));
-    }
+    // Scheduled backups: each cron trigger maps to a fixed schedule name (see backup-config.ts).
+    ctx.waitUntil(runScheduledBackups(env, cronToSchedules(event.cron)));
   },
   // Queue consumer for background embedding generation.
   queue: async (batch, env, _ctx) => {
@@ -124,31 +137,3 @@ export default {
     }
   },
 } satisfies ExportedHandler<Env>;
-
-/**
- * Run scheduled backups for all accounts with matching cron schedules.
- */
-async function runScheduledBackups(env: Env, cronExpression: string): Promise<void> {
-  const { results: configs } = await env.DB.prepare(
-    `SELECT id, account_id, schedule FROM backup_configs WHERE enabled = 1 AND schedule = ?1`,
-  )
-    .bind(cronExpression)
-    .all<{ id: string; account_id: string; schedule: string }>();
-
-  for (const config of configs ?? []) {
-    try {
-      // Trigger backup via internal fetch.
-      await env.DB.prepare(
-        `INSERT INTO backup_history (id, account_id, config_id, status, started_at, created_at)
-         VALUES (?1, ?2, ?3, 'running', ?4, ?4)`,
-      )
-        .bind(crypto.randomUUID(), config.account_id, config.id, Date.now())
-        .run();
-
-      // TODO: Implement actual backup logic here (fetch notes, upload to WebDAV/S3).
-      console.log(`[backup] Scheduled backup triggered for config ${config.id}`);
-    } catch (err) {
-      console.error(`[backup] Scheduled backup failed for config ${config.id}:`, err);
-    }
-  }
-}

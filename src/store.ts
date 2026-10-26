@@ -5,7 +5,8 @@ import { setLocale } from "./i18n";
 import type { Locale } from "./i18n";
 import { setTheme } from "./theme";
 import type { Theme } from "./theme";
-import { cacheNoteLocally, enqueueNoteWrite, enqueueFolderWrite } from "./sync";
+import { cacheNoteLocally, enqueueNoteWrite, enqueueFolderWrite, syncPendingWrites } from "./sync";
+import { wipeCaches, wipeLocalData } from "./privacy";
 
 export const booting = signal(true);
 export const account = signal<Account | null>(null);
@@ -41,7 +42,13 @@ export async function boot(): Promise<void> {
     applySettings(me.settings);
     await refreshLists();
   } catch (err) {
-    if (!(err instanceof ApiError && err.status === 401)) console.error("boot failed", err);
+    if (err instanceof ApiError && err.status === 401) {
+      // Session gone: make sure no private API data lingers in CacheStorage.
+      // (Queued offline writes are kept so they can still sync after re-login.)
+      void wipeCaches();
+    } else {
+      console.error("boot failed", err);
+    }
     account.value = null;
   } finally {
     booting.value = false;
@@ -56,9 +63,17 @@ export async function login(username: string, password: string): Promise<void> {
 }
 
 export async function logout(): Promise<void> {
+  // Push out queued offline edits first (best effort, max 3 s) so wiping the
+  // device does not lose work that could still be saved.
+  try {
+    await Promise.race([syncPendingWrites(), new Promise((r) => setTimeout(r, 3000))]);
+  } catch {
+    /* ignore */
+  }
   try {
     await api.logout();
   } finally {
+    await wipeLocalData();
     account.value = null;
     notes.value = [];
     folders.value = [];

@@ -66,7 +66,8 @@ First successful login creates the sole admin account and seeds the two standard
 3. `npx wrangler kv namespace create FILES_KV` → replace `id` in `wrangler.jsonc`
 4. `npx wrangler d1 migrations apply notetion-db --remote`
 5. `npx wrangler secret put ADMIN_PASSWORD` (choose a strong password; `ADMIN_USERNAME` defaults to `admin` via `vars`)
-6. `npm run deploy`
+6. `openssl rand -base64 48` → `npx wrangler secret put BACKUP_ENCRYPTION_KEY` (only needed for off-site backups; credentials are stored AES-GCM-encrypted with it. Losing/rotating it makes saved backup configs unreadable — re-create them)
+7. `npm run deploy`
 
 ## Roadmap
 

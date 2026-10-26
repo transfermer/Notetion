@@ -1,157 +1,144 @@
 /**
- * S3-compatible client for off-site backups.
+ * S3-compatible client (AWS S3, Cloudflare R2, MinIO, …) using AWS Signature V4.
  *
- * Supports:
- *  - PUT (upload object)
- *  - DELETE (remove object)
- *
- * Uses AWS Signature Version 4 for authentication.
- * Compatible with AWS S3, Cloudflare R2, MinIO, etc.
+ * Fixes vs. the previous version:
+ *  - `host` is now part of the signed headers (S3 rejects requests without it,
+ *    so every previous S3 backup failed with a signature/AccessDenied error);
+ *  - the canonical URI is encoded per RFC 3986 segment-by-segment as S3 requires;
+ *  - the signing logic is a pure function, verified against AWS's published
+ *    SigV4 test vectors (see tests/s3.test.ts).
  */
 
 export interface S3Config {
-  endpoint: string; // e.g. https://s3.amazonaws.com or https://<account>.r2.cloudflarestorage.com
-  region: string; // e.g. us-east-1 or auto
+  endpoint: string; // e.g. https://<account>.r2.cloudflarestorage.com
+  region: string; // e.g. us-east-1, or "auto" for R2
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
 }
 
+const enc = new TextEncoder();
+
+function toHex(buf: ArrayBuffer | Uint8Array): string {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function sha256Hex(data: string | Uint8Array): Promise<string> {
+  const bytes = typeof data === "string" ? enc.encode(data) : data;
+  return toHex(await crypto.subtle.digest("SHA-256", bytes as BufferSource));
+}
+
+async function hmac(key: string | Uint8Array, data: string): Promise<Uint8Array> {
+  const raw = typeof key === "string" ? enc.encode(key) : key;
+  const k = await crypto.subtle.importKey("raw", raw as BufferSource, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return new Uint8Array(await crypto.subtle.sign("HMAC", k, enc.encode(data)));
+}
+
+/** RFC 3986 percent-encoding as required by SigV4 (also encodes ! ' ( ) *). */
+function uriEncode(s: string): string {
+  return encodeURIComponent(s).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+}
+
+export interface SignInput {
+  method: string;
+  url: string;
+  /** Extra headers to send AND sign (e.g. content-type). host / x-amz-* are added automatically. */
+  headers?: Record<string, string>;
+  payloadHash: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  region: string;
+  /** ISO basic format, e.g. 20130524T000000Z */
+  amzDate: string;
+  service?: string;
+}
+
+/** Returns the headers to send (everything except `host`, which fetch sets itself). */
+export async function signRequest(i: SignInput): Promise<Record<string, string>> {
+  const service = i.service ?? "s3";
+  const u = new URL(i.url);
+  const dateStamp = i.amzDate.slice(0, 8);
+
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(i.headers ?? {})) headers[k.toLowerCase()] = v;
+  headers["x-amz-date"] = i.amzDate;
+  headers["x-amz-content-sha256"] = i.payloadHash;
+
+  const signable: Record<string, string> = { ...headers, host: u.host };
+  const names = Object.keys(signable).sort();
+  const canonicalHeaders = names.map((n) => `${n}:${signable[n].trim().replace(/\s+/g, " ")}\n`).join("");
+  const signedHeaders = names.join(";");
+
+  const canonicalUri = u.pathname
+    .split("/")
+    .map((seg) => uriEncode(decodeURIComponent(seg)))
+    .join("/");
+  const canonicalQuery = [...u.searchParams.entries()]
+    .map(([k, v]) => [uriEncode(k), uriEncode(v)] as const)
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : a[1] < b[1] ? -1 : 1))
+    .map(([k, v]) => `${k}=${v}`)
+    .join("&");
+
+  const canonicalRequest = [i.method, canonicalUri || "/", canonicalQuery, canonicalHeaders, signedHeaders, i.payloadHash].join("\n");
+
+  const scope = `${dateStamp}/${i.region}/${service}/aws4_request`;
+  const stringToSign = ["AWS4-HMAC-SHA256", i.amzDate, scope, await sha256Hex(canonicalRequest)].join("\n");
+
+  const kDate = await hmac(`AWS4${i.secretAccessKey}`, dateStamp);
+  const kRegion = await hmac(kDate, i.region);
+  const kService = await hmac(kRegion, service);
+  const kSigning = await hmac(kService, "aws4_request");
+  const signature = toHex(await hmac(kSigning, stringToSign));
+
+  headers["authorization"] = `AWS4-HMAC-SHA256 Credential=${i.accessKeyId}/${scope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
+  return headers;
+}
+
+export function amzDateNow(d = new Date()): string {
+  return d.toISOString().replace(/[:-]|\.\d{3}/g, "");
+}
+
 export class S3Client {
-  constructor(private config: S3Config) {}
+  private readonly config: S3Config;
+  constructor(config: S3Config) {
+    this.config = config;
+  }
 
-  async put(key: string, data: ArrayBuffer, contentType = "application/octet-stream"): Promise<void> {
-    const url = `${this.config.endpoint}/${this.config.bucket}/${key}`;
-    const method = "PUT";
-    const headers = new Headers({
-      "Content-Type": contentType,
+  private objectUrl(key: string): string {
+    const base = this.config.endpoint.replace(/\/+$/, "");
+    const path = key.split("/").map(encodeURIComponent).join("/");
+    return `${base}/${encodeURIComponent(this.config.bucket)}/${path}`;
+  }
+
+  async put(key: string, data: Uint8Array, contentType = "application/octet-stream"): Promise<void> {
+    const url = this.objectUrl(key);
+    const headers = await signRequest({
+      method: "PUT",
+      url,
+      headers: { "content-type": contentType },
+      payloadHash: await sha256Hex(data),
+      accessKeyId: this.config.accessKeyId,
+      secretAccessKey: this.config.secretAccessKey,
+      region: this.config.region,
+      amzDate: amzDateNow(),
     });
-
-    // Sign request.
-    const signedHeaders = await this.signRequest(method, url, headers, data);
-
-    const response = await fetch(url, {
-      method,
-      headers: signedHeaders,
-      body: data,
-    });
-
-    if (!response.ok) {
-      throw new Error(`S3 PUT failed: ${response.status} ${response.statusText}`);
-    }
+    const res = await fetch(url, { method: "PUT", headers, body: data as BodyInit, signal: AbortSignal.timeout(25_000) });
+    if (!res.ok) throw new Error(`S3 PUT failed: HTTP ${res.status}`);
   }
 
   async delete(key: string): Promise<void> {
-    const url = `${this.config.endpoint}/${this.config.bucket}/${key}`;
-    const method = "DELETE";
-    const headers = new Headers();
-
-    // Sign request.
-    const signedHeaders = await this.signRequest(method, url, headers);
-
-    const response = await fetch(url, {
-      method,
-      headers: signedHeaders,
+    const url = this.objectUrl(key);
+    const headers = await signRequest({
+      method: "DELETE",
+      url,
+      payloadHash: await sha256Hex(new Uint8Array(0)),
+      accessKeyId: this.config.accessKeyId,
+      secretAccessKey: this.config.secretAccessKey,
+      region: this.config.region,
+      amzDate: amzDateNow(),
     });
-
-    if (!response.ok && response.status !== 404) {
-      throw new Error(`S3 DELETE failed: ${response.status} ${response.statusText}`);
-    }
-  }
-
-  private async signRequest(
-    method: string,
-    url: string,
-    headers: Headers,
-    body?: ArrayBuffer,
-  ): Promise<Headers> {
-    const signedHeaders = new Headers(headers);
-    const now = new Date();
-    const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
-    const amzDate = now.toISOString().replace(/[:\-]|\.\d{3}/g, "");
-
-    signedHeaders.set("x-amz-date", amzDate);
-    signedHeaders.set("x-amz-content-sha256", await this.sha256Hex(body || new ArrayBuffer(0)));
-
-    // Create canonical request.
-    const canonicalUri = new URL(url).pathname;
-    const canonicalQuerystring = "";
-    const canonicalHeaders = Array.from(signedHeaders.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k.toLowerCase()}:${v.trim()}`)
-      .join("\n") + "\n";
-    const signedHeadersList = Array.from(signedHeaders.keys())
-      .map((k) => k.toLowerCase())
-      .sort()
-      .join(";");
-    const payloadHash = await this.sha256Hex(body || new ArrayBuffer(0));
-
-    const canonicalRequest = [
-      method,
-      canonicalUri,
-      canonicalQuerystring,
-      canonicalHeaders,
-      signedHeadersList,
-      payloadHash,
-    ].join("\n");
-
-    // Create string to sign.
-    const credentialScope = `${dateStamp}/${this.config.region}/s3/aws4_request`;
-    const stringToSign = [
-      "AWS4-HMAC-SHA256",
-      amzDate,
-      credentialScope,
-      await this.sha256Hex(canonicalRequest),
-    ].join("\n");
-
-    // Calculate signature.
-    const signingKey = await this.getSignatureKey(this.config.secretAccessKey, dateStamp, this.config.region);
-    const signature = await this.hmacHex(signingKey, stringToSign);
-
-    // Add authorization header.
-    const authorization = `AWS4-HMAC-SHA256 Credential=${this.config.accessKeyId}/${credentialScope}, SignedHeaders=${signedHeadersList}, Signature=${signature}`;
-    signedHeaders.set("Authorization", authorization);
-
-    return signedHeaders;
-  }
-
-  private async sha256Hex(data: ArrayBuffer | string): Promise<string> {
-    const encoded = typeof data === "string" ? new TextEncoder().encode(data) : data;
-    const hash = await crypto.subtle.digest("SHA-256", encoded);
-    return Array.from(new Uint8Array(hash))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
-
-  private async hmacHex(key: ArrayBuffer, data: string): Promise<string> {
-    const cryptoKey = await crypto.subtle.importKey(
-      "raw",
-      key,
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"],
-    );
-    const signature = await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(data));
-    return Array.from(new Uint8Array(signature))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-  }
-
-  private async getSignatureKey(key: string, dateStamp: string, region: string): Promise<ArrayBuffer> {
-    const kDate = await this.hmac(`AWS4${key}`, dateStamp);
-    const kRegion = await this.hmac(kDate, region);
-    const kService = await this.hmac(kRegion, "s3");
-    return this.hmac(kService, "aws4_request");
-  }
-
-  private async hmac(key: ArrayBuffer | string, data: string): Promise<ArrayBuffer> {
-    const cryptoKey = await crypto.subtle.importKey(
-      "raw",
-      typeof key === "string" ? new TextEncoder().encode(key) : key,
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["sign"],
-    );
-    return crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(data));
+    const res = await fetch(url, { method: "DELETE", headers, signal: AbortSignal.timeout(25_000) });
+    if (!res.ok && res.status !== 404) throw new Error(`S3 DELETE failed: HTTP ${res.status}`);
   }
 }

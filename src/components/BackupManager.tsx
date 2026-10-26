@@ -30,6 +30,13 @@ interface Props {
   onClose: () => void;
 }
 
+function errorDetail(err: unknown): string {
+  const data = (err as { data?: { detail?: unknown } } | null)?.data;
+  const detail = data && typeof data.detail === "string" ? data.detail : "";
+  const base = err instanceof Error ? err.message : String(err);
+  return detail ? `${base} (${detail})` : base;
+}
+
 export function BackupManager(props: Props) {
   const [configs, setConfigs] = useState<BackupConfig[]>([]);
   const [history, setHistory] = useState<BackupHistory[]>([]);
@@ -115,7 +122,7 @@ export function BackupManager(props: Props) {
       await loadConfigs();
     } catch (err) {
       console.error("create backup config failed", err);
-      alert("Failed to create backup config");
+      alert(`Failed to create backup config: ${errorDetail(err)}`);
     }
   }
 
@@ -137,7 +144,7 @@ export function BackupManager(props: Props) {
       alert("Backup completed!");
     } catch (err) {
       console.error("run backup failed", err);
-      alert("Backup failed. Check console for details.");
+      alert(`Backup failed: ${errorDetail(err)}`);
     } finally {
       setBackingUp(false);
     }
@@ -255,13 +262,12 @@ export function BackupManager(props: Props) {
               )}
 
               <label class="field">
-                <span>Schedule (cron, optional)</span>
-                <input
-                  type="text"
-                  placeholder="0 3 * * * (daily at 3 AM)"
-                  value={schedule}
-                  onInput={(e) => setSchedule(e.currentTarget.value)}
-                />
+                <span>Schedule</span>
+                <select value={schedule} onChange={(e) => setSchedule(e.currentTarget.value)}>
+                  <option value="">Manual only</option>
+                  <option value="daily">Daily (about 03:17 UTC)</option>
+                  <option value="6h">Every 6 hours</option>
+                </select>
               </label>
 
               <div class="form-actions">
@@ -289,7 +295,7 @@ export function BackupManager(props: Props) {
                       <div class="config-name">{config.name}</div>
                       <div class="config-meta">
                         <span class="config-type">{config.type.toUpperCase()}</span>
-                        {config.schedule && <span>Schedule: {config.schedule}</span>}
+                        {config.schedule && <span>Schedule: {config.schedule === "6h" ? "every 6 hours" : config.schedule === "daily" ? "daily" : config.schedule}</span>}
                         <span>Created: {new Date(config.created_at).toLocaleDateString()}</span>
                       </div>
                     </div>

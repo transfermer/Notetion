@@ -11,6 +11,7 @@ import {
 } from "./session";
 import { newId, now, safeEqualSecret } from "./util";
 import { seedStarterNotes } from "./seed";
+import { clearLoginFailures, loginRetryAfter, recordLoginFailure } from "./ratelimit";
 
 export type AppEnv = {
   Bindings: Env;
@@ -54,11 +55,22 @@ authRoutes.post("/login", async (c) => {
     return c.json({ error: "missing_credentials" }, 400);
   }
 
+  const db = c.env.DB;
+  const ip = c.req.header("cf-connecting-ip") ?? "unknown";
+  const retryAfter = await loginRetryAfter(db, ip, now());
+  if (retryAfter > 0) {
+    c.header("Retry-After", String(retryAfter));
+    return c.json({ error: "too_many_attempts", retry_after: retryAfter }, 429);
+  }
+
   const okUser = await safeEqualSecret(username.trim(), adminUser);
   const okPass = await safeEqualSecret(password, adminPass);
-  if (!okUser || !okPass) return c.json({ error: "invalid_credentials" }, 401);
+  if (!okUser || !okPass) {
+    await recordLoginFailure(db, ip, now());
+    return c.json({ error: "invalid_credentials" }, 401);
+  }
+  await clearLoginFailures(db, ip);
 
-  const db = c.env.DB;
   const ts = now();
   let account = await db
     .prepare(`SELECT id, username, role FROM accounts WHERE username = ?1`)
