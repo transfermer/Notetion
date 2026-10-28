@@ -32,18 +32,6 @@ Sign in with the credentials from `.dev.vars` (shipped defaults: `admin` / `note
 First successful login creates the sole admin account and seeds the two standard starter notes
 (Traditional Chinese + English). Registration is closed by design.
 
-### Type checking
-
-`.dev.vars` is gitignored, so a fresh clone has no secrets for `wrangler types` to read — run it
-in this order or the generated `Env` type will be missing `ADMIN_PASSWORD` (and the worker
-typecheck will fail):
-
-```sh
-cp .dev.vars.example .dev.vars   # fill in ADMIN_PASSWORD (and BACKUP_ENCRYPTION_KEY if you use backups)
-npm run types                    # regenerate worker-configuration.d.ts from wrangler.jsonc + .dev.vars
-npm run typecheck                # tsc --noEmit for src/ and worker/ (expect 0 errors)
-```
-
 > Note for this machine's shell: the environment exports `NPM_CONFIG_GLOBAL=true` — prefix npm
 > installs with `NPM_CONFIG_GLOBAL=false` or packages go to the global prefix instead of the project.
 
@@ -71,6 +59,11 @@ npm run typecheck                # tsc --noEmit for src/ and worker/ (expect 0 e
 `PATCH /api/notes/:id` takes `base_version` for optimistic concurrency; a stale write returns
 `409 {error:"version_conflict"}`. Content edits snapshot the previous state into `note_versions`.
 
+## Type checking
+`npm run typecheck` needs the generated `Env` types, which include secrets only when `.dev.vars` exists:
+`cp .dev.vars.example .dev.vars && npm run types && npm run typecheck`
+(the script runs `src/` first and stops on its first error, so worker/ errors can appear only after src/ is clean).
+
 ## Deploy checklist (when ready)
 
 1. `npx wrangler login` (or export `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`)
@@ -80,6 +73,47 @@ npm run typecheck                # tsc --noEmit for src/ and worker/ (expect 0 e
 5. `npx wrangler secret put ADMIN_PASSWORD` (choose a strong password; `ADMIN_USERNAME` defaults to `admin` via `vars`)
 6. `openssl rand -base64 48` → `npx wrangler secret put BACKUP_ENCRYPTION_KEY` (only needed for off-site backups; credentials are stored AES-GCM-encrypted with it. Losing/rotating it makes saved backup configs unreadable — re-create them)
 7. `npm run deploy`
+
+## Deploy from the Cloudflare dashboard (Git-connected, no local wrangler login)
+
+Notetion is a **Worker with static assets** (not a Pages project), so it is deployed through
+*Workers & Pages → Create → Import a repository* (Workers Builds). Button labels may differ slightly between dashboard versions.
+
+**1. Create the resources once (dashboard → Storage & databases)**
+- **D1** → Create database `notetion-db` → copy its *Database ID*.
+- **KV** → Create namespace `FILES_KV` → copy its *Namespace ID*.
+- **Queues** → Create queue `embedding-queue` (the Worker binds to it; deploy fails if it does not exist).
+  Embeddings use Workers AI, which is optional — search works without it.
+
+**2. Put the IDs in `wrangler.jsonc` and push to your Git repo**
+- `d1_databases[0].database_id` ← the D1 ID
+- `kv_namespaces[0].id` ← the KV ID
+(IDs are identifiers, not secrets, so committing them is fine.)
+
+**3. Import the repository**
+- Workers & Pages → Create → *Import a repository* → pick the repo, branch `main`.
+- Worker name must equal `"name"` in `wrangler.jsonc` (`notetion`).
+- Build command: `npm run build`
+- Deploy command: `npx wrangler d1 migrations apply notetion-db --remote && npx wrangler deploy`
+  (applies new migrations on every deploy, then publishes; already-applied migrations are skipped).
+- If the build says `vite: not found`, dev dependencies were skipped: add a build variable `NODE_ENV=development`
+  (or change the build command to `npm install --include=dev && npm run build`).
+
+**4. Set secrets** (Worker → Settings → *Variables and Secrets* → type **Secret**, not plain text)
+- `ADMIN_PASSWORD` — required.
+- `BACKUP_ENCRYPTION_KEY` — only for off-site backups; generate with `openssl rand -base64 48`, keep a copy
+  (losing it makes saved backup configs unreadable).
+- Optional plain variables: `ADMIN_USERNAME` (default `admin`; the `vars` block in `wrangler.jsonc` is re-applied on each
+  deploy, so change it there), `ENABLE_MCP_OAUTH` (`true` to enable MCP/OAuth/API keys).
+  Secrets set in the dashboard survive deploys.
+
+**5. Redeploy and verify**
+- Trigger a deploy (push a commit or *Retry deployment*) after setting secrets.
+- Open `https://notetion.<your-subdomain>.workers.dev`, check `/api/health`, sign in with `ADMIN_USERNAME` / `ADMIN_PASSWORD`.
+- Cron triggers (`wrangler.jsonc`) are registered by the deploy; no dashboard setup needed.
+
+Dashboard-only alternative for the database: instead of the migrations command above, open D1 → `notetion-db` → *Console*
+and paste each file from `migrations/` in numeric order (0001 … 0009). Prefer the command; it tracks what was applied.
 
 ## Roadmap
 
