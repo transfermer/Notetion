@@ -1,7 +1,7 @@
 import MarkdownIt from "markdown-it";
-import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
-import type StateBlock from "markdown-it/lib/rules_block/state_block.mjs";
-import Prism from "prismjs";
+import type { StateInline, StateBlock } from "markdown-it";
+import Prism from "./prism-setup"; // must come before the prismjs/components imports
+import "prismjs/components/prism-jsx"; // tsx extends jsx
 import "prismjs/components/prism-typescript";
 import "prismjs/components/prism-tsx";
 import "prismjs/components/prism-latex";

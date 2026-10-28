@@ -102,7 +102,7 @@ export const api = {
   getNote: (id: string) => request<{ note: Note }>(`/api/notes/${encodeURIComponent(id)}`),
   createNote: (input: { title?: string; content?: string; folder_id?: string | null }) =>
     request<{ note: Note }>("/api/notes", { method: "POST", json: input }),
-  patchNote: (id: string, patch: Record<string, unknown>, opts: { keepalive?: boolean } = {}) =>
+  patchNote: (id: string, patch: object, opts: { keepalive?: boolean } = {}) =>
     request<{ note: Note }>(`/api/notes/${encodeURIComponent(id)}`, {
       method: "PATCH",
       json: patch,
