@@ -11,7 +11,7 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function renderSharePage(title: string, bodyHtml: string, meta: string): string {
+function renderSharePage(title: string, bodyHtml: string): string {
   return `<!doctype html>
 <html lang="zh-TW">
 <head>
@@ -163,7 +163,7 @@ publicShareRoutes.get("/:slug", async (c) => {
         <input type="password" name="passphrase" placeholder="Passphrase" autofocus required>
         <button type="submit">Unlock</button>
       </form>`;
-      return c.html(renderSharePage("Protected", form, ""));
+      return c.html(renderSharePage("Protected", form));
     }
     return c.json({ error: "passphrase_required", share_id: share.id }, 401);
   }
@@ -176,7 +176,7 @@ publicShareRoutes.get("/:slug", async (c) => {
 
   if (wantsHtml(c)) {
     const bodyHtml = `<header><h1>${escapeHtml(share.title || "(untitled)")}</h1><div class="meta">Shared via Notetion · updated ${new Date(share.updated_at).toISOString().slice(0, 10)}</div></header><div class="content">${shareMd.render(share.content)}</div>`;
-    return c.html(renderSharePage(share.title, bodyHtml, ""));
+    return c.html(renderSharePage(share.title, bodyHtml));
   }
 
   return c.json({
@@ -225,7 +225,7 @@ publicShareRoutes.post("/:slug/verify", async (c) => {
         <input type="password" name="passphrase" placeholder="Passphrase" autofocus required>
         <button type="submit">Unlock</button>
       </form>`;
-      return c.html(renderSharePage("Protected", form, ""), 401);
+      return c.html(renderSharePage("Protected", form), 401);
     }
     return c.json({ error: "invalid_passphrase" }, 401);
   }
@@ -238,7 +238,7 @@ publicShareRoutes.post("/:slug/verify", async (c) => {
 
   if (wantsHtml(c)) {
     const bodyHtml = `<header><h1>${escapeHtml(share.title || "(untitled)")}</h1><div class="meta">Shared via Notetion · updated ${new Date(share.updated_at).toISOString().slice(0, 10)}</div></header><div class="content">${shareMd.render(share.content)}</div>`;
-    return c.html(renderSharePage(share.title, bodyHtml, ""));
+    return c.html(renderSharePage(share.title, bodyHtml));
   }
 
   return c.json({

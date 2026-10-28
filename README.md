@@ -32,6 +32,18 @@ Sign in with the credentials from `.dev.vars` (shipped defaults: `admin` / `note
 First successful login creates the sole admin account and seeds the two standard starter notes
 (Traditional Chinese + English). Registration is closed by design.
 
+### Type checking
+
+`.dev.vars` is gitignored, so a fresh clone has no secrets for `wrangler types` to read — run it
+in this order or the generated `Env` type will be missing `ADMIN_PASSWORD` (and the worker
+typecheck will fail):
+
+```sh
+cp .dev.vars.example .dev.vars   # fill in ADMIN_PASSWORD (and BACKUP_ENCRYPTION_KEY if you use backups)
+npm run types                    # regenerate worker-configuration.d.ts from wrangler.jsonc + .dev.vars
+npm run typecheck                # tsc --noEmit for src/ and worker/ (expect 0 errors)
+```
+
 > Note for this machine's shell: the environment exports `NPM_CONFIG_GLOBAL=true` — prefix npm
 > installs with `NPM_CONFIG_GLOBAL=false` or packages go to the global prefix instead of the project.
 
