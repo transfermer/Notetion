@@ -1,6 +1,6 @@
 import { signal } from "@preact/signals";
 import { EditorPane } from "./EditorPane";
-import { leftPane, rightPane, setActive } from "../panes";
+import { dualPane, leftPane, rightPane, setActive } from "../panes";
 
 export const focusMode = signal(false);
 export const typewriterMode = signal(false);
@@ -15,12 +15,14 @@ export function Workspace() {
       >
         <EditorPane key={leftPane.value.noteId ?? "none"} pane={leftPane.value} focusMode={focusMode.value} typewriterMode={typewriterMode.value} />
       </div>
+      {dualPane.value && (
       <div
         class={`pane-slot ${rightPane.value.active ? "active" : ""}`}
         onClick={() => setActive("right")}
       >
         <EditorPane key={rightPane.value.noteId ?? "none"} pane={rightPane.value} focusMode={focusMode.value} typewriterMode={typewriterMode.value} />
       </div>
+      )}
     </div>
   );
 }

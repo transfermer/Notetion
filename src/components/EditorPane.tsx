@@ -9,7 +9,7 @@ import { OutlinePanel } from "./OutlinePanel";
 import { VersionHistory } from "./VersionHistory";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { ShareManager } from "./ShareManager";
-import { cycleLayout, type PaneState } from "../panes";
+import { cycleLayout, dualPane, setDualPane, type PaneState } from "../panes";
 import { AutosaveController, type SaveState, type SavedNote } from "../autosave";
 import { signal } from "@preact/signals";
 
@@ -285,6 +285,19 @@ export function EditorPane(props: Props) {
         >
           {layout === "edit" ? "✎" : layout === "split" ? "⇔" : "◉"}
         </button>
+        {props.pane.id === "left" ? (
+          <button
+            class={`btn ghost small ${dualPane.value ? "on" : ""}`}
+            title={dualPane.value ? "Close second pane" : "Open second pane (side by side)"}
+            onClick={() => setDualPane(!dualPane.value)}
+          >
+            ◫
+          </button>
+        ) : (
+          <button class="btn ghost small" title="Close this pane" onClick={() => setDualPane(false)}>
+            ✕
+          </button>
+        )}
         {showEditor && (
           <button class={`btn ghost small ${showOutline ? "on" : ""}`} title="Outline" onClick={() => setShowOutline((v) => !v)}>
             ☰
