@@ -340,6 +340,52 @@ textarea {
   visibility: visible;
 }
 
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 8px 8px;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.tag-chip {
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tag-chip.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.tag-count {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.empty.tiny {
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.folder-select {
+  max-width: 120px;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 4px;
+  font-size: 12px;
+}
+
 .scope-del:hover {
   color: var(--danger);
   background: var(--bg-hover);

@@ -21,6 +21,11 @@ export interface NoteMeta {
   excerpt?: string;
 }
 
+export interface TagCount {
+  name: string;
+  count: number;
+}
+
 export interface Note extends NoteMeta {
   content: string;
 }
@@ -92,10 +97,13 @@ export const api = {
   logout: () => request<{ ok: boolean }>("/api/auth/logout", { method: "POST" }),
   me: () => request<{ account: Account; settings: SettingsMap }>("/api/auth/me"),
 
-  listNotes: (opts: { trash?: boolean; folderId?: string | null } = {}) => {
+  listNotes: (opts: { trash?: boolean; folderId?: string | null; tag?: string | null } = {}) => {
     const qs = new URLSearchParams();
     if (opts.trash) qs.set("trash", "1");
-    else if (opts.folderId) qs.set("folder_id", opts.folderId);
+    else {
+      if (opts.folderId) qs.set("folder_id", opts.folderId);
+      if (opts.tag) qs.set("tag", opts.tag);
+    }
     const suffix = qs.toString() ? `?${qs.toString()}` : "";
     return request<{ notes: NoteMeta[] }>(`/api/notes${suffix}`);
   },
@@ -114,6 +122,8 @@ export const api = {
     }),
   restoreNote: (id: string) =>
     request<{ ok: boolean }>(`/api/notes/${encodeURIComponent(id)}/restore`, { method: "POST" }),
+
+  listTags: () => request<{ tags: TagCount[] }>("/api/tags"),
 
   listFolders: () => request<{ folders: Folder[] }>("/api/folders"),
   createFolder: (name: string, parentId: string | null = null) =>

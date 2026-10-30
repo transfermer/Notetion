@@ -1,6 +1,6 @@
 import { signal } from "@preact/signals";
 import { api, ApiError } from "./api";
-import type { Account, Folder, NoteMeta, SettingsMap } from "./api";
+import type { Account, Folder, NoteMeta, SettingsMap, TagCount } from "./api";
 import { setLocale } from "./i18n";
 import type { Locale } from "./i18n";
 import { setTheme } from "./theme";
@@ -15,6 +15,8 @@ export const folders = signal<Folder[]>([]);
 export const notes = signal<NoteMeta[]>([]);
 export const activeNoteId = signal<string | null>(null);
 export const activeFolderId = signal<string | null>(null);
+export const tags = signal<TagCount[]>([]);
+export const activeTag = signal<string | null>(null);
 export const trashMode = signal(false);
 export const online = signal(navigator.onLine);
 
@@ -27,12 +29,21 @@ function applySettings(map: SettingsMap): void {
 }
 
 export async function refreshLists(): Promise<void> {
-  const [notesRes, foldersRes] = await Promise.all([
-    api.listNotes(trashMode.value ? { trash: true } : { folderId: activeFolderId.value }),
+  const [notesRes, foldersRes, tagsRes] = await Promise.all([
+    api.listNotes(trashMode.value ? { trash: true } : { folderId: activeFolderId.value, tag: activeTag.value }),
     api.listFolders(),
+    api.listTags().catch(() => null), // tags are a convenience: never let them break the main lists
   ]);
   notes.value = notesRes.notes;
   folders.value = foldersRes.folders;
+  if (tagsRes) {
+    tags.value = tagsRes.tags;
+    // The selected tag vanished (its last note was edited/deleted): fall back to all notes.
+    if (activeTag.value && !tagsRes.tags.some((t) => t.name === activeTag.value)) {
+      activeTag.value = null;
+      return refreshLists(); // reload without the stale filter
+    }
+  }
 }
 
 export async function boot(): Promise<void> {
@@ -77,6 +88,8 @@ export async function logout(): Promise<void> {
     account.value = null;
     notes.value = [];
     folders.value = [];
+    tags.value = [];
+    activeTag.value = null;
     activeNoteId.value = null;
     activeFolderId.value = null;
     trashMode.value = false;
@@ -85,12 +98,22 @@ export async function logout(): Promise<void> {
 
 export async function selectFolder(id: string | null): Promise<void> {
   activeFolderId.value = id;
+  activeTag.value = null; // folder and tag are alternative scopes
+  trashMode.value = false;
+  await refreshLists();
+}
+
+/** Show the notes carrying `name`; selecting the active tag again (or null) clears the filter. */
+export async function selectTag(name: string | null): Promise<void> {
+  activeTag.value = name && name !== activeTag.value ? name : null;
+  activeFolderId.value = null;
   trashMode.value = false;
   await refreshLists();
 }
 
 export async function selectTrash(): Promise<void> {
   trashMode.value = true;
+  activeTag.value = null;
   await refreshLists();
 }
 
@@ -148,6 +171,22 @@ export async function createFolder(name: string): Promise<void> {
       };
       folders.value = [...folders.value, localFolder];
       await enqueueFolderWrite("POST", null, { name, parent_id: null });
+    } else {
+      throw err;
+    }
+  }
+}
+
+export async function renameFolder(id: string, name: string): Promise<void> {
+  const clean = name.trim();
+  if (!clean) return;
+  try {
+    await api.patchFolder(id, { name: clean });
+    await refreshLists();
+  } catch (err) {
+    if (err instanceof ApiError && !navigator.onLine) {
+      folders.value = folders.value.map((f) => (f.id === id ? { ...f, name: clean } : f));
+      await enqueueFolderWrite("PATCH", id, { name: clean });
     } else {
       throw err;
     }

@@ -11,6 +11,7 @@ import { oauthRoutes, oauthAuthorizeRoutes, oauthTokenRoutes } from "./oauth";
 import { mcpRoutes } from "./mcp";
 import { sharesRoutes, publicShareRoutes } from "./shares";
 import { exportRoutes } from "./export";
+import { tagRoutes } from "./tag-routes";
 import { backupRoutes, runScheduledBackups } from "./backups";
 import { cronToSchedules } from "./backup-config";
 import { isMcpOauthPath, mcpOauthEnabled } from "./features";
@@ -54,6 +55,7 @@ app.get("/api/health", (c) =>
 app.route("/api/auth", authRoutes);
 app.route("/api/notes", notesRoutes);
 app.route("/api/folders", foldersRoutes);
+app.route("/api/tags", tagRoutes);
 app.route("/api/settings", settingsRoutes);
 app.route("/api/files", filesRoutes);
 app.route("/api", searchRoutes);

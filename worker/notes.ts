@@ -3,6 +3,7 @@ import type { AppEnv } from "./auth";
 import { requireAuth } from "./auth";
 import { newId, now } from "./util";
 import { extractTags, fetchNoteTags, syncNoteTags } from "./tags";
+import { buildNoteListQuery } from "./note-list";
 import { parseWikiLinks } from "./wiki";
 import { generateEmbedding, storeEmbedding, EMBEDDING_MODEL } from "./ai";
 
@@ -124,36 +125,20 @@ async function fetchNote(db: D1Database, accountId: string, id: string): Promise
   return row ?? null;
 }
 
-// GET /api/notes?trash=1&archived=1&folder_id=<id>
+// GET /api/notes?trash=1&archived=1&folder_id=<id>&tag=<name>
 notesRoutes.get("/", async (c) => {
   const accountId = c.get("account").id;
-  const trash = c.req.query("trash") === "1";
-  const archived = c.req.query("archived") === "1";
-  const folderId = c.req.query("folder_id");
-
-  const clauses = [
-    "account_id = ?1",
-    trash
-      ? "deleted_at IS NOT NULL"
-      : archived
-        ? "deleted_at IS NULL AND archived = 1"
-        : "deleted_at IS NULL AND archived = 0",
-  ];
-  const params: (string | number | null)[] = [accountId];
-  if (folderId) {
-    params.push(folderId);
-    clauses.push(`folder_id = ?${params.length}`);
-  }
-  const order = trash ? "deleted_at DESC" : "pinned DESC, updated_at DESC";
-  const { results } = await c.env.DB.prepare(
-    `SELECT ${LIST_COLS}, substr(content, 1, 160) AS excerpt
-       FROM notes
-      WHERE ${clauses.join(" AND ")}
-      ORDER BY ${order}
-      LIMIT 500`,
-  )
-    .bind(...params)
-    .all();
+  const { sql, params } = buildNoteListQuery(
+    {
+      accountId,
+      trash: c.req.query("trash") === "1",
+      archived: c.req.query("archived") === "1",
+      folderId: c.req.query("folder_id"),
+      tag: c.req.query("tag"),
+    },
+    LIST_COLS,
+  );
+  const { results } = await c.env.DB.prepare(sql).bind(...params).all();
   return c.json({ notes: results ?? [] });
 });
 

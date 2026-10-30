@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { api, ApiError } from "../api";
 import type { Note } from "../api";
-import { refreshLists, trashNote, updateNoteMeta } from "../store";
+import { folders, refreshLists, trashNote, updateNoteMeta } from "../store";
 import { relTime, t } from "../i18n";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { PreviewPane } from "./PreviewPane";
@@ -174,6 +174,25 @@ export function EditorPane(props: Props) {
     }
   }
 
+  async function moveToFolder(folderId: string | null) {
+    const ctrl = ctrlRef.current;
+    const current = noteRef.current;
+    if (!ctrl || !current || (current.folder_id ?? null) === folderId) return;
+    setNote({ ...current, folder_id: folderId }); // optimistic
+    try {
+      const saved = await ctrl.exclusive(async () => {
+        const res = await api.patchNote(current.id, { folder_id: folderId, base_version: ctrl.version });
+        return res.note;
+      });
+      setNote((prev) => (prev ? { ...prev, folder_id: saved.folder_id, version: saved.version, updated_at: saved.updated_at } : prev));
+      updateNoteMeta(saved);
+      refreshListsSoon();
+    } catch (err) {
+      setNote(current); // revert
+      if (conflictFrom(err) || (err instanceof ApiError && err.status === 409)) setSaveState("conflict");
+    }
+  }
+
   async function trashCurrent() {
     await ctrlRef.current?.flush(); // don't leave unsaved edits behind a deleted note
     if (note) await trashNote(note.id);
@@ -305,6 +324,19 @@ export function EditorPane(props: Props) {
         )}
         {!inTrash && (
           <>
+            <select
+              class="folder-select"
+              title={t("moveToFolder")}
+              value={note.folder_id ?? ""}
+              onChange={(e) => void moveToFolder(e.currentTarget.value || null)}
+            >
+              <option value="">{t("noFolder")}</option>
+              {folders.value.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
             <button class="btn ghost small" title="Share" onClick={() => setShowShareManager(true)}>
               🔗
             </button>

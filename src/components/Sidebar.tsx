@@ -2,6 +2,7 @@ import { useState } from "preact/hooks";
 import {
   account,
   activeFolderId,
+  activeTag,
   changeLocale,
   changeTheme,
   createFolder,
@@ -10,7 +11,10 @@ import {
   logout,
   notes,
   removeFolder,
+  renameFolder,
   selectFolder,
+  selectTag,
+  tags,
   selectTrash,
   trashMode,
 } from "../store";
@@ -95,7 +99,7 @@ export function Sidebar(props: SidebarProps) {
 
       <nav class="folder-list">
         <button
-          class={!trashMode.value && activeFolderId.value === null ? "scope active" : "scope"}
+          class={!trashMode.value && activeFolderId.value === null && activeTag.value === null ? "scope active" : "scope"}
           onClick={() => void selectFolder(null)}
           onDragOver={(e) => {
             e.preventDefault();
@@ -130,6 +134,16 @@ export function Sidebar(props: SidebarProps) {
             </button>
             <button
               class="scope-del"
+              title={t("renameFolder")}
+              onClick={() => {
+                const next = prompt(t("folderRenamePrompt"), f.name);
+                if (next && next.trim() && next.trim() !== f.name) void renameFolder(f.id, next);
+              }}
+            >
+              ✎
+            </button>
+            <button
+              class="scope-del"
               title={t("deleteNote")}
               onClick={() => {
                 if (confirm(t("folderDeleteConfirm", { name: f.name }))) void removeFolder(f.id);
@@ -144,6 +158,22 @@ export function Sidebar(props: SidebarProps) {
           ️ {t("trash")}
         </button>
       </nav>
+
+      <div class="section-label">
+        <span>{t("tags")}</span>
+      </div>
+      <div class="tag-list">
+        {tags.value.length === 0 && <div class="empty tiny">{t("noTags")}</div>}
+        {tags.value.map((tg) => (
+          <button
+            key={tg.name}
+            class={!trashMode.value && activeTag.value === tg.name ? "tag-chip active" : "tag-chip"}
+            onClick={() => void selectTag(tg.name)}
+          >
+            #{tg.name} <span class="tag-count">{tg.count}</span>
+          </button>
+        ))}
+      </div>
 
       <div class="section-label">
         <span>{t("notesLabel")}</span>
