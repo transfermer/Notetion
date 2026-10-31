@@ -442,8 +442,8 @@ textarea {
 
 .sidebar-foot {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   padding: 10px 12px;
   border-top: 1px solid var(--border);
@@ -457,10 +457,36 @@ textarea {
   white-space: nowrap;
 }
 
+.foot-user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .foot-btns {
   display: flex;
+  flex-wrap: wrap; /* 13 buttons do not fit in one 280px row; the last ones (sign out) used to be clipped */
   gap: 2px;
-  flex-shrink: 0;
+}
+
+.focus-exit {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 50;
+  background: var(--bg-panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.focus-exit:hover {
+  opacity: 1;
 }
 
 /* ============ editor ============ */

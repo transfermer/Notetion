@@ -27,6 +27,8 @@ export function App() {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
         setCommandOpen((v) => !v);
+      } else if (e.key === "Escape" && focusMode.value) {
+        focusMode.value = false; // always a way back to the sidebar
       }
     }
 
@@ -52,8 +54,13 @@ export function App() {
   if (!account.value) return <LoginPage />;
 
   return (
-    <div class="layout">
+    <div class={focusMode.value ? "layout focus-active" : "layout"}>
       {!focusMode.value && <Sidebar onShowApiKeys={() => setShowApiKeys(true)} />}
+      {focusMode.value && (
+        <button class="focus-exit" title="Exit focus mode (Esc)" onClick={() => (focusMode.value = false)}>
+          ☰
+        </button>
+      )}
       <main class="main">
         <Workspace />
       </main>

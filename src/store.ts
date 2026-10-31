@@ -83,8 +83,10 @@ export async function logout(): Promise<void> {
   }
   try {
     await api.logout();
+  } catch (err) {
+    console.error("logout request failed", err);
   } finally {
-    await wipeLocalData();
+    // Leave the app immediately; never let a stuck cleanup keep the user signed in on screen.
     account.value = null;
     notes.value = [];
     folders.value = [];
@@ -94,6 +96,7 @@ export async function logout(): Promise<void> {
     activeFolderId.value = null;
     trashMode.value = false;
   }
+  await Promise.race([wipeLocalData(), new Promise((r) => setTimeout(r, 2000))]);
 }
 
 export async function selectFolder(id: string | null): Promise<void> {

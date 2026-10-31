@@ -204,9 +204,14 @@ export function Sidebar(props: SidebarProps) {
       </div>
 
       <footer class="sidebar-foot">
-        <span class="who" title={account.value?.username}>
-          {account.value?.username}
-        </span>
+        <div class="foot-user">
+          <span class="who" title={account.value?.username}>
+            {account.value?.username}
+          </span>
+          <button class="btn small" onClick={() => void logout()}>
+            {t("signOut")}
+          </button>
+        </div>
         <div class="foot-btns">
           <button
             class="btn ghost small"
@@ -273,9 +278,6 @@ export function Sidebar(props: SidebarProps) {
             onClick={() => setShowNotices(true)}
           >
             📢
-          </button>
-          <button class="btn ghost small" onClick={() => void logout()}>
-            {t("signOut")}
           </button>
         </div>
       </footer>
