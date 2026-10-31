@@ -64,3 +64,9 @@ export function openNoteInActive(noteId: string): void {
   const target = leftPane.value.active || !dualPane.value ? leftPane : rightPane;
   target.value = { ...target.value, noteId };
 }
+
+/** Clear any pane that is showing `noteId` (e.g. after the note was permanently deleted). */
+export function closeNote(noteId: string): void {
+  if (leftPane.value.noteId === noteId) leftPane.value = { ...leftPane.value, noteId: null };
+  if (rightPane.value.noteId === noteId) rightPane.value = { ...rightPane.value, noteId: null };
+}

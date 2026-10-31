@@ -9,7 +9,6 @@ import {
   createNote,
   folders,
   logout,
-  notes,
   removeFolder,
   renameFolder,
   selectFolder,
@@ -18,10 +17,9 @@ import {
   selectTrash,
   trashMode,
 } from "../store";
-import { locale, relTime, t } from "../i18n";
+import { locale, t } from "../i18n";
 import { theme } from "../theme";
 import { focusMode, typewriterMode } from "./Workspace";
-import { openNoteInActive } from "../panes";
 import { api } from "../api";
 import { GraphView } from "./GraphView";
 import { ExportManager } from "./ExportManager";
@@ -76,6 +74,7 @@ export function Sidebar(props: SidebarProps) {
         </button>
       </div>
 
+      <div class="sidebar-scroll">
       <div class="section-label">
         <span>{t("folders")}</span>
         <button class="btn ghost tiny" title={t("newFolder")} onClick={() => setAddingFolder((v) => !v)}>
@@ -174,33 +173,6 @@ export function Sidebar(props: SidebarProps) {
           </button>
         ))}
       </div>
-
-      <div class="section-label">
-        <span>{t("notesLabel")}</span>
-      </div>
-
-      <div class="note-list">
-        {notes.value.length === 0 && <div class="empty">{trashMode.value ? t("noNotesTrash") : t("noNotes")}</div>}
-        {notes.value.map((n) => (
-          <button
-            key={n.id}
-            class="note-item"
-            draggable={!trashMode.value}
-            onDragStart={(e) => {
-              e.dataTransfer?.setData("text/plain", n.id);
-            }}
-            onClick={() => {
-              openNoteInActive(n.id);
-            }}
-          >
-            <span class="note-title">
-              {n.pinned ? " " : ""}
-              {n.archived ? " " : ""}
-              {n.title || t("untitled")}
-            </span>
-            <span class="note-time">{relTime(trashMode.value && n.deleted_at ? n.deleted_at : n.updated_at)}</span>
-          </button>
-        ))}
       </div>
 
       <footer class="sidebar-foot">

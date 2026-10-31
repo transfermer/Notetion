@@ -4,6 +4,8 @@ import { locale } from "./i18n";
 import { applyTheme } from "./theme";
 import { LoginPage } from "./components/LoginPage";
 import { Sidebar } from "./components/Sidebar";
+import { NoteList } from "./components/NoteList";
+import { noteListCollapsed } from "./layout";
 import { Workspace, focusMode } from "./components/Workspace";
 import { CommandPalette } from "./components/CommandPalette";
 import { ApiKeyManager } from "./components/ApiKeyManager";
@@ -54,8 +56,9 @@ export function App() {
   if (!account.value) return <LoginPage />;
 
   return (
-    <div class={focusMode.value ? "layout focus-active" : "layout"}>
+    <div class={focusMode.value ? "layout focus-active" : noteListCollapsed.value ? "layout list-collapsed" : "layout"}>
       {!focusMode.value && <Sidebar onShowApiKeys={() => setShowApiKeys(true)} />}
+      {!focusMode.value && <NoteList />}
       {focusMode.value && (
         <button class="focus-exit" title="Exit focus mode (Esc)" onClick={() => (focusMode.value = false)}>
           ☰

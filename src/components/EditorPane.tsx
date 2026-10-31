@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { api, ApiError } from "../api";
 import type { Note } from "../api";
-import { folders, refreshLists, trashNote, updateNoteMeta } from "../store";
+import { folders, purgeNote, refreshLists, restoreNote, trashNote, updateNoteMeta } from "../store";
 import { relTime, t } from "../i18n";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { PreviewPane } from "./PreviewPane";
@@ -9,7 +9,7 @@ import { OutlinePanel } from "./OutlinePanel";
 import { VersionHistory } from "./VersionHistory";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { ShareManager } from "./ShareManager";
-import { cycleLayout, dualPane, setDualPane, type PaneState } from "../panes";
+import { closeNote, cycleLayout, dualPane, setDualPane, type PaneState } from "../panes";
 import { AutosaveController, type SaveState, type SavedNote } from "../autosave";
 import { signal } from "@preact/signals";
 
@@ -193,6 +193,29 @@ export function EditorPane(props: Props) {
     }
   }
 
+  async function restoreCurrent() {
+    if (!note) return;
+    try {
+      await restoreNote(note.id);
+      reloadFromServer(); // re-fetch: the note is live (editable) again
+    } catch (err) {
+      console.error("restore failed", err);
+      alert(`${t("restore")}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  async function purgeCurrent() {
+    if (!note) return;
+    const id = note.id;
+    try {
+      await purgeNote(id);
+      closeNote(id);
+    } catch (err) {
+      console.error("purge failed", err);
+      alert(`${t("purge")}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   async function trashCurrent() {
     await ctrlRef.current?.flush(); // don't leave unsaved edits behind a deleted note
     if (note) await trashNote(note.id);
@@ -321,6 +344,21 @@ export function EditorPane(props: Props) {
           <button class={`btn ghost small ${showOutline ? "on" : ""}`} title="Outline" onClick={() => setShowOutline((v) => !v)}>
             ☰
           </button>
+        )}
+        {inTrash && (
+          <>
+            <button class="btn small" onClick={() => void restoreCurrent()}>
+              {t("restore")}
+            </button>
+            <button
+              class="btn small danger"
+              onClick={() => {
+                if (confirm(t("purgeConfirm"))) void purgeCurrent();
+              }}
+            >
+              {t("purge")}
+            </button>
+          </>
         )}
         {!inTrash && (
           <>

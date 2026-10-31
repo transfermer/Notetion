@@ -226,8 +226,12 @@ textarea {
 /* ============ layout ============ */
 .layout {
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 184px 264px minmax(0, 1fr); /* menu | notes list | editor */
   height: 100%;
+}
+
+.layout.list-collapsed {
+  grid-template-columns: 184px 36px minmax(0, 1fr);
 }
 
 .layout.focus-active {
@@ -244,6 +248,7 @@ textarea {
 
 .sidebar-head {
   display: flex;
+  flex-wrap: wrap; /* the menu column is narrow: brand on top, "new note" below if it does not fit */
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -389,6 +394,48 @@ textarea {
 .scope-del:hover {
   color: var(--danger);
   background: var(--bg-hover);
+}
+
+.sidebar-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.notelist {
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.notelist.collapsed {
+  align-items: center;
+  padding-top: 10px;
+  background: var(--bg-panel);
+}
+
+.notelist-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 12px 8px 6px 14px;
+}
+
+.notelist-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notelist-count {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: 12px;
 }
 
 .note-list {
@@ -2033,15 +2080,28 @@ textarea {
 
 /* ============ mobile (basic stacking; full layout in M9) ============ */
 @media (max-width: 720px) {
-  .layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 40vh) 1fr;
+  .layout,
+  .layout.list-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+
+  .notelist {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    max-height: 28vh;
+  }
+
+  .notelist.collapsed {
+    flex-direction: row;
+    padding: 4px 8px;
+    max-height: none;
   }
 
   .sidebar {
     border-right: none;
     border-bottom: 1px solid var(--border);
-    max-height: 40vh;
+    max-height: 30vh;
     overflow-y: auto;
   }
 
